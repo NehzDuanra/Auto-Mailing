@@ -1,0 +1,516 @@
+import React, { useState } from 'react';
+import { Upload, FileText, Settings, Play, CheckCircle, Mail, AlertCircle, RefreshCw, Copy, Check, Sparkles, ChevronRight, FileSpreadsheet, Info } from 'lucide-react';
+
+export default function App() {
+  // ==========================================
+  // 1. DÉCLARATION DES VARIABLES D'ÉTAT (STATE)
+  // ==========================================
+  const [csvData, setCsvData] = useState([]); 
+  const [columns, setColumns] = useState([]); 
+  const [fileName, setFileName] = useState(''); 
+  const [mailClient, setMailClient] = useState('outlook');
+  const [subjectTemplate, setSubjectTemplate] = useState("Candidature : Stage [Job] - Arnaud Zhen");
+  
+  const [template, setTemplate] = useState(
+    "Monsieur/Madame [Nom],\n\nActuellement étudiant au Programme Grande École de emlyon business school, avec une spécialisation en finance de marché et une première expérience chez Look&Fin comme Assistant Analyste Financier, je me permets de vous contacter afin de connaître les opportunités de stage à partir de Juillet 2026 au sein de votre équipe de [Job]. \n\nJ’ai développé une solide compréhension des produits dérivés, en particulier sur les options vanilles, les sensibilités et les mécanismes de pricing (pense à personnaliser cette partie selon les missions attendues : produits, outils, ou thématiques du stage). \nJe dispose également de premières bases sur les produits FX et leurs usages en couverture. Ces connaissances s’appuient sur de bonnes compétences techniques (Excel, VBA, Python) et une réelle volonté de m’investir sur un desk exigeant comme le vôtre. \n\nJe joins mon CV à ce mail et reste disponible pour échanger à votre convenance, notamment par téléphone au +33767834222. \nCordialement, \nArnaud Zhen"
+  );
+  
+  const [prompt, setPrompt] = useState(
+    "Tu es un étudiant en finance à l'emlyon business school. Tu contactes des professionnels en poste pour des opportunités de stage en finance de marché. Ton but est de personnaliser le modèle d'e-mail fourni pour la personne ciblée. Utilise ses informations (notamment les colonnes Linkedin, Asset, Desk si disponibles) pour adapter l'accroche et surtout pour remplacer la partie entre parenthèses dans le modèle par des éléments pertinents liés à son desk ou ses produits. Le ton doit rester très professionnel, courtois et sur-mesure. Renvoie UNIQUEMENT le texte de l'e-mail final, sans aucun commentaire avant ou après."
+  );
+  
+  const [results, setResults] = useState([]); 
+  const [isGenerating, setIsGenerating] = useState(false); 
+  const [progress, setProgress] = useState({ current: 0, total: 0 }); 
+  const [copiedIndex, setCopiedIndex] = useState(null); 
+
+  // ==========================================
+  // 2. FONCTIONS DE TRAITEMENT DE DONNÉES
+  // ==========================================
+  const parseCSV = (text) => {
+    const lines = text.split('\n').filter(line => line.trim() !== '');
+    if (lines.length === 0) return;
+
+    const separator = lines[0].includes(';') ? ';' : ',';
+    const regex = new RegExp(`\\${separator}(?=(?:(?:[^"]*"){2})*[^"]*$)`);
+
+    const headers = lines[0].split(regex).map(h => h.trim().replace(/^"|"$/g, ''));
+    setColumns(headers);
+
+    const parsedData = lines.slice(1).map(line => {
+      const values = line.split(regex).map(v => v.trim().replace(/^"|"$/g, ''));
+      const rowObj = {};
+      headers.forEach((header, index) => {
+        rowObj[header] = values[index] || '';
+      });
+      return rowObj;
+    }).filter(row => {
+      const hasRealData = Object.values(row).some(val => val !== '' && !val.includes('#VALEUR!'));
+      const hasName = (row['Prénom'] && !row['Prénom'].includes('#VALEUR!')) || (row['Nom'] && !row['Nom'].includes('#VALEUR!'));
+      return hasRealData && hasName;
+    });
+
+    setCsvData(parsedData); 
+    setResults(parsedData.map(row => ({ ...row, generatedEmail: '', status: 'pending' })));
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      setFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        parseCSV(e.target.result);
+      };
+      reader.readAsText(file, 'windows-1252'); 
+    }
+  };
+
+  // ==========================================
+  // 3. FONCTION DE CONNEXION À L'IA GEMINI
+  // ==========================================
+  const callGeminiAPI = async (systemPrompt, userText, retries = 5) => {
+    
+    // ⚠️ METS TA CLÉ API ICI ENTRE LES GUILLEMETS :
+    const apiKey = "AIzaSyD1DThdXRIUMi29KbOVYkLd3GkftTvuRGQ"; 
+    
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    
+    const payload = {
+      contents: [{ parts: [{ text: userText }] }],
+      systemInstruction: { parts: [{ text: systemPrompt }] }
+    };
+
+    const delays = [1000, 2000, 4000, 8000, 16000];
+
+    for (let i = 0; i < retries; i++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erreur API (${response.status}) - Surcharge ou limite atteinte`);
+        }
+        
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "Erreur de génération du texte.";
+        
+      } catch (error) {
+        if (i === retries - 1) return `Erreur après ${retries} tentatives : ${error.message}`;
+        await new Promise(resolve => setTimeout(resolve, delays[i]));
+      }
+    }
+  };
+
+  // ==========================================
+  // 4. MOTEUR DE GÉNÉRATION DES E-MAILS
+  // ==========================================
+  const generateEmails = async () => {
+    if (csvData.length === 0) return;
+    
+    setIsGenerating(true);
+    setProgress({ current: 0, total: csvData.length });
+    
+    const newResults = [...results];
+
+    for (let i = 0; i < csvData.length; i++) {
+      newResults[i].status = 'generating';
+      setResults([...newResults]);
+
+      const row = csvData[i];
+      
+      let preFilledSubject = subjectTemplate;
+      columns.forEach(col => {
+        const regex = new RegExp(`\\[${col}\\]`, 'gi');
+        preFilledSubject = preFilledSubject.replace(regex, row[col]);
+      });
+      newResults[i].generatedSubject = preFilledSubject;
+
+      let preFilledTemplate = template;
+      columns.forEach(col => {
+        const regex = new RegExp(`\\[${col}\\]`, 'gi');
+        preFilledTemplate = preFilledTemplate.replace(regex, row[col]);
+      });
+
+      const userText = `
+        Voici les informations sur le candidat/la cible :
+        ${JSON.stringify(row, null, 2)}
+        
+        Voici le modèle d'email pré-rempli à adapter :
+        """
+        ${preFilledTemplate}
+        """
+      `;
+
+      const generatedText = await callGeminiAPI(prompt, userText);
+      
+      newResults[i].generatedEmail = generatedText.trim();
+      newResults[i].status = generatedText.includes('Erreur') ? 'error' : 'done';
+      
+      setProgress({ current: i + 1, total: csvData.length });
+      setResults([...newResults]);
+
+      // Pause de 3 secondes
+      if (i < csvData.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+    }
+
+    setIsGenerating(false);
+  };
+
+  const regenerateSingleEmail = async (index) => {
+    const newResults = [...results];
+    newResults[index].status = 'generating';
+    setResults([...newResults]);
+
+    const row = csvData[index];
+    
+    let preFilledSubject = subjectTemplate;
+    columns.forEach(col => {
+      const regex = new RegExp(`\\[${col}\\]`, 'gi');
+      preFilledSubject = preFilledSubject.replace(regex, row[col]);
+    });
+    newResults[index].generatedSubject = preFilledSubject;
+
+    let preFilledTemplate = template;
+    columns.forEach(col => {
+      const regex = new RegExp(`\\[${col}\\]`, 'gi');
+      preFilledTemplate = preFilledTemplate.replace(regex, row[col]);
+    });
+
+    const userText = `
+      Voici les informations sur le candidat/la cible :
+      ${JSON.stringify(row, null, 2)}
+      
+      Voici le modèle d'email pré-rempli à adapter :
+      """
+      ${preFilledTemplate}
+      """
+    `;
+
+    const generatedText = await callGeminiAPI(prompt, userText);
+    
+    newResults[index].generatedEmail = generatedText.trim();
+    newResults[index].status = generatedText.includes('Erreur') ? 'error' : 'done';
+    
+    setResults([...newResults]);
+  };
+
+  // ==========================================
+  // 5. FONCTIONS UTILITAIRES 
+  // ==========================================
+  const copyToClipboard = (text, index) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIndex(index);
+    setTimeout(() => setCopiedIndex(null), 2000); 
+  };
+
+  const getMailtoLink = (email, subject, body) => {
+    const safeEmail = encodeURIComponent(email || '');
+    const safeSubject = encodeURIComponent(subject || '');
+    const safeBody = encodeURIComponent(body || '');
+
+    if (mailClient === 'outlook') {
+      return `https://outlook.office.com/mail/deeplink/compose?to=${safeEmail}&subject=${safeSubject}&body=${safeBody}`;
+    } else if (mailClient === 'gmail') {
+      return `https://mail.google.com/mail/?view=cm&fs=1&to=${safeEmail}&su=${safeSubject}&body=${safeBody}`;
+    } else {
+      return `mailto:${email}?subject=${safeSubject}&body=${safeBody}`;
+    }
+  };
+
+  // ==========================================
+  // 6. AFFICHAGE VISUEL
+  // ==========================================
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans selection:bg-indigo-100 selection:text-indigo-900 pb-16">
+      
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-200 text-white">
+              <Sparkles size={20} />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 leading-tight">Auto-Mailing</h1>
+              <p className="text-xs text-slate-500 font-medium">Propulsé par l'IA</p>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center space-x-2 text-sm font-medium text-slate-500">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-green-500 mr-1"></span>
+            Système opérationnel
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 lg:pt-12">
+        
+        <div className="bg-gradient-to-r from-indigo-50/50 to-blue-50/50 border border-indigo-100 rounded-[1.5rem] p-6 mb-8 flex flex-col sm:flex-row gap-5 items-start shadow-sm">
+          <div className="bg-white p-3 rounded-2xl shadow-sm text-indigo-600 shrink-0 border border-indigo-50">
+            <Info size={26} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-indigo-950 text-lg mb-2">Comment ça marche ?</h3>
+            <p className="text-sm text-slate-600 mb-4 leading-relaxed max-w-4xl">
+              <strong>1.</strong> Importez votre fichier CSV (contenant par ex: <em>Nom, Prénom, Job, Email...</em>). <br/>
+              <strong>2.</strong> Ajustez l'objet et le corps de l'e-mail en intégrant vos variables entre crochets (ex: <code className="bg-white px-1.5 py-0.5 rounded text-indigo-700 font-bold border border-indigo-100">[Nom]</code>). <br/>
+              <strong>3.</strong> L'IA va analyser vos instructions et personnaliser chaque e-mail. Vérifiez le résultat, puis cliquez sur "Ouvrir le brouillon" pour l'envoyer depuis votre propre messagerie en toute sécurité !
+            </p>
+            
+            <div className="bg-white rounded-xl p-4 border border-amber-200 shadow-sm">
+              <p className="text-sm text-amber-800 font-bold flex items-center mb-1.5">
+                <AlertCircle size={18} className="text-amber-500 mr-2" />
+                Note concernant l'erreur de "Limite atteinte" (Erreur API 401 / 429)
+              </p>
+              <p className="text-[13px] text-slate-600 leading-relaxed">
+                Les serveurs d'Intelligence Artificielle limitent le nombre de demandes simultanées pour éviter les spams. Si la génération d'un e-mail échoue et affiche ce message d'erreur, ne vous inquiétez pas : <strong>cliquez simplement sur le bouton "Regénérer" situé sous l'e-mail échoué</strong>. Pour plus de stabilité sur les grandes campagnes, privilégiez l'import de petits fichiers CSV (10 à 20 contacts à la fois).
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12">
+          
+          <div className="xl:col-span-5 space-y-8">
+            
+            <section className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 p-6 sm:p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-bl-[100px] -z-10 opacity-50"></div>
+              
+              <div className="flex items-center space-x-4 mb-6">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">1</div>
+                <h2 className="text-xl font-bold text-slate-800">Importer les contacts</h2>
+              </div>
+
+              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center hover:bg-slate-50 hover:border-indigo-400 transition-all cursor-pointer group relative">
+                <input 
+                  type="file" 
+                  accept=".csv" 
+                  onChange={handleFileUpload} 
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                />
+                <div className="w-16 h-16 mx-auto bg-white rounded-full shadow-sm border border-slate-100 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <FileSpreadsheet className="text-indigo-500" size={28} />
+                </div>
+                <p className="text-sm text-slate-700 font-semibold mb-1">
+                  {fileName ? fileName : "Cliquez ou glissez un fichier .csv"}
+                </p>
+              </div>
+              
+              {columns.length > 0 && (
+                <div className="mt-6 p-4 bg-green-50/50 rounded-2xl border border-green-100/50 flex items-start space-x-3">
+                  <CheckCircle size={20} className="text-green-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-green-800 font-bold">{csvData.length} contacts détectés</p>
+                    <p className="text-xs text-green-600/80 mt-1 leading-relaxed">
+                      Variables : {columns.map(c => <span key={c} className="inline-block px-1.5 py-0.5 bg-green-100 rounded text-green-700 mx-0.5 mb-1">[{c}]</span>)}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 p-6 sm:p-8 relative overflow-hidden">
+              <div className="flex items-center space-x-4 mb-8">
+                <div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">2</div>
+                <h2 className="text-xl font-bold text-slate-800">Paramétrage du modèle</h2>
+              </div>
+              
+              <div className="space-y-6">
+                
+                <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  <label className="block text-sm font-semibold text-slate-700 mb-3">
+                    Ouvrir les e-mails avec :
+                  </label>
+                  <div className="flex flex-wrap gap-3">
+                    {['outlook', 'gmail', 'default'].map((client) => (
+                      <label key={client} className={`flex-1 min-w-[100px] cursor-pointer relative`}>
+                        <input type="radio" name="mailClient" value={client} checked={mailClient === client} onChange={() => setMailClient(client)} className="peer sr-only" />
+                        <div className="text-center px-3 py-2.5 text-xs font-medium rounded-xl border transition-all peer-checked:bg-white peer-checked:border-indigo-500 peer-checked:text-indigo-700 peer-checked:shadow-sm text-slate-500 border-slate-200 hover:bg-slate-50">
+                          {client === 'outlook' ? 'Outlook Web' : client === 'gmail' ? 'Gmail Web' : 'App du PC'}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-slate-700 mb-2">
+                    <Mail size={16} className="mr-2 text-slate-400" /> Objet de l'e-mail
+                  </label>
+                  <input 
+                    type="text"
+                    className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition-all font-medium text-slate-800"
+                    value={subjectTemplate}
+                    onChange={(e) => setSubjectTemplate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-slate-700 mb-2">
+                    <FileText size={16} className="mr-2 text-slate-400" /> Corps de l'e-mail
+                  </label>
+                  <textarea 
+                    className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition-all resize-y text-slate-700 leading-relaxed"
+                    rows="6"
+                    value={template}
+                    onChange={(e) => setTemplate(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="flex items-center text-sm font-semibold text-slate-700 mb-2">
+                    <Settings size={16} className="mr-2 text-slate-400" /> Instructions secrètes pour l'IA
+                  </label>
+                  <textarea 
+                    className="w-full text-sm p-4 bg-indigo-50/30 border border-indigo-100 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:bg-white outline-none transition-all resize-y text-slate-600 leading-relaxed"
+                    rows="4"
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <div className="sticky bottom-6 z-40">
+              <button
+                onClick={generateEmails}
+                disabled={isGenerating || csvData.length === 0}
+                className={`w-full py-4.5 px-6 rounded-2xl font-bold text-[15px] flex items-center justify-center transition-all duration-200 ${
+                  isGenerating || csvData.length === 0
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20 hover:-translate-y-0.5'
+                }`}
+              >
+                {isGenerating ? (
+                  <>
+                    <RefreshCw className="animate-spin mr-3 text-slate-400" size={20} />
+                    Génération en cours ({progress.current}/{progress.total})
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 opacity-80" size={20} />
+                    Lancer la rédaction magique
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="xl:col-span-7 space-y-6">
+            <section className="bg-white rounded-[2rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 p-6 sm:p-8 min-h-[800px] flex flex-col">
+              <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100">
+                <h2 className="text-xl font-bold text-slate-800 flex items-center">
+                  <span className="w-2 h-6 bg-indigo-500 rounded-full mr-3"></span>
+                  Aperçu & Validation
+                </h2>
+                {results.length > 0 && (
+                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">
+                    {results.filter(r => r.status === 'done').length} / {results.length} terminés
+                  </span>
+                )}
+              </div>
+              
+              {results.length === 0 ? (
+                <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                  <div className="w-24 h-24 mb-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center">
+                    <Mail size={32} className="opacity-40" />
+                  </div>
+                  <p className="text-[15px] font-medium text-slate-500">Vos e-mails apparaîtront ici.</p>
+                  <p className="text-sm mt-2 opacity-70">Importez un fichier et lancez la génération.</p>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {results.map((result, index) => (
+                    <div key={index} className="border border-slate-200/70 rounded-[1.5rem] overflow-hidden hover:border-slate-300 transition-colors shadow-sm bg-white group">
+                      
+                      <div className="bg-slate-50/50 px-6 py-4 flex justify-between items-center border-b border-slate-100">
+                        <div className="flex items-center space-x-4">
+                          <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">
+                            {result.Prénom ? result.Prénom.charAt(0).toUpperCase() : '?'}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-slate-800 text-[15px]">{result.Prénom} {result.Nom}</h3>
+                            <div className="flex items-center text-xs text-slate-500 mt-0.5 font-medium">
+                              <span className="bg-white border border-slate-200 px-2 py-0.5 rounded mr-2">{result.Entreprise || 'Indépendant'}</span>
+                              {result.Email && <span>{result.Email}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          {result.status === 'generating' && (
+                            <div className="flex items-center text-indigo-500 text-sm font-medium bg-indigo-50 px-3 py-1 rounded-full">
+                              <RefreshCw size={14} className="animate-spin mr-2" /> Rédaction...
+                            </div>
+                          )}
+                          {result.status === 'done' && <CheckCircle size={24} className="text-green-500" />}
+                          {result.status === 'error' && <AlertCircle size={24} className="text-red-500" />}
+                        </div>
+                      </div>
+                      
+                      <div className="bg-white">
+                        {result.status === 'pending' && (
+                          <div className="p-8 text-center text-slate-400 text-sm font-medium">En attente de traitement...</div>
+                        )}
+                        
+                        {(result.status === 'done' || result.status === 'error') && (
+                          <div>
+                            <div className="px-6 py-3 bg-white border-b border-slate-100 text-[13px] flex items-center">
+                              <span className="font-bold text-slate-400 uppercase tracking-wider mr-3">Objet :</span>
+                              <span className="font-semibold text-slate-700">{result.generatedSubject}</span>
+                            </div>
+
+                            <div className={`p-6 text-[14px] whitespace-pre-wrap leading-relaxed relative ${result.status === 'error' ? 'bg-red-50/30 text-red-800' : 'bg-white text-slate-700'}`}>
+                              {result.generatedEmail}
+                              
+                              {result.status === 'done' && (
+                                <button 
+                                  onClick={() => copyToClipboard(result.generatedEmail, index)}
+                                  className="absolute top-4 right-4 p-2 bg-white border border-slate-200 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-50 hover:scale-105 text-slate-500"
+                                  title="Copier le texte"
+                                >
+                                  {copiedIndex === index ? <Check size={16} className="text-green-500"/> : <Copy size={16} />}
+                                </button>
+                              )}
+                            </div>
+                            
+                            <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end space-x-3">
+                              <button
+                                onClick={() => regenerateSingleEmail(index)}
+                                className="inline-flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl hover:bg-slate-50 hover:text-slate-900 transition-all shadow-sm"
+                              >
+                                <RefreshCw size={16} className="mr-2 opacity-70" />
+                                Regénérer
+                              </button>
+
+                              {result.status === 'done' && (
+                                <a 
+                                  href={getMailtoLink(result.Email || '', result.generatedSubject || 'Candidature', result.generatedEmail)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 hover:shadow-lg hover:shadow-indigo-600/20 transition-all"
+                                >
+                                  Ouvrir le brouillon
+                                  <ChevronRight size={16} className="ml-1 opacity-70" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+          
+        </div>
+      </main>
+    </div>
+  );
+}
