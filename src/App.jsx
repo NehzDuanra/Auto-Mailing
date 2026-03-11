@@ -81,10 +81,11 @@ export default function App() {
         setUser(null);
         setUserData({ credits: 0, isSubscribed: false });
         setAuthLoading(false);
+        if (currentView === 'app') setCurrentView('home');
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentView]);
 
   useEffect(() => {
     if (!window.puter) {
@@ -290,7 +291,6 @@ export default function App() {
       const generatedText = await callAI(prompt, userText);
       let safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
 
-      // Nettoyage des caractères parasites (guillemets ou parenthèses) rajoutés par l'IA à la fin
       safeText = safeText.trim().replace(/^["']|["']$/g, '').replace(/\)+$/, '').trim();
 
       if (stopRef.current) {
@@ -353,7 +353,6 @@ export default function App() {
     const generatedText = await callAI(prompt, userText);
     let safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
 
-    // Nettoyage des caractères parasites (guillemets ou parenthèses) rajoutés par l'IA à la fin
     safeText = safeText.trim().replace(/^["']|["']$/g, '').replace(/\)+$/, '').trim();
 
     newResults[index].generatedEmail = safeText;
@@ -597,6 +596,14 @@ export default function App() {
           <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 p-6 sm:p-8 relative overflow-hidden">
             <div className="flex items-center space-x-4 mb-8"><div className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm">2</div><h2 className="text-xl font-bold text-slate-800">Paramétrage du modèle</h2></div>
             <div className="space-y-6">
+              <div>
+                <label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><Settings size={16} className="mr-2 text-slate-400" /> Ouverture des brouillons</label>
+                <select value={mailClient} onChange={(e) => setMailClient(e.target.value)} className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none">
+                  <option value="outlook">Outlook (Web)</option>
+                  <option value="gmail">Gmail (Web)</option>
+                  <option value="default">Application par défaut (Mail Mac, Courrier, etc.)</option>
+                </select>
+              </div>
               <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><Mail size={16} className="mr-2 text-slate-400" /> Objet de l'e-mail</label><input type="text" className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none" value={subjectTemplate} onChange={(e) => setSubjectTemplate(e.target.value)} /></div>
               <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><FileText size={16} className="mr-2 text-slate-400" /> Corps de l'e-mail</label><textarea className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none resize-y" rows="6" value={template} onChange={(e) => setTemplate(e.target.value)} /></div>
               <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><Settings size={16} className="mr-2 text-slate-400" /> Instructions pour l'IA</label><textarea className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none resize-y" rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} /></div>
@@ -615,7 +622,7 @@ export default function App() {
                   <div className="bg-slate-50/50 px-6 py-4 flex justify-between items-center border-b border-slate-100"><div className="flex items-center space-x-4"><div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-600 font-bold shadow-sm">{result.Prénom ? result.Prénom.charAt(0).toUpperCase() : '?'}</div><div><h3 className="font-bold text-slate-800 text-[15px]">{result.Prénom} {result.Nom}</h3><div className="flex items-center text-xs text-slate-500 mt-0.5 font-medium">{result.Email && <span>{result.Email}</span>}</div></div></div><div>{result.status === 'generating' && <div className="flex items-center text-indigo-500 text-sm font-medium bg-indigo-50 px-3 py-1 rounded-full"><RefreshCw size={14} className="animate-spin mr-2" /> Rédaction...</div>}{result.status === 'done' && <CheckCircle size={24} className="text-green-500" />}{result.status === 'error' && <AlertCircle size={24} className="text-red-500" />}</div></div>
                   <div className="bg-white">
                     {result.status === 'pending' && <div className="p-8 flex flex-col items-center justify-center text-slate-400 text-sm font-medium border-t border-slate-50"><p className="mb-4">En attente de traitement...</p><button onClick={() => regenerateSingleEmail(index)} disabled={isGenerating} className={`inline-flex items-center px-5 py-2.5 bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold rounded-xl transition-all shadow-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-100 hover:-translate-y-0.5'}`}><Sparkles size={16} className="mr-2" /> Générer cet e-mail</button></div>}
-                    {(result.status === 'done' || result.status === 'error') && <div><div className="px-6 py-3 bg-white border-b border-slate-100 text-[13px] flex items-center"><span className="font-bold text-slate-400 uppercase tracking-wider mr-3">Objet :</span><span className="font-semibold text-slate-700">{result.generatedSubject}</span></div><div className={`p-6 text-[14px] whitespace-pre-wrap leading-relaxed relative ${result.status === 'error' ? 'bg-red-50/30 text-red-800' : 'bg-white text-slate-700'}`}>{result.generatedEmail}{result.status === 'done' && <button onClick={() => copyToClipboard(result.generatedEmail, index)} className="absolute top-4 right-4 p-2 bg-white border border-slate-200 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-50 text-slate-500">{copiedIndex === index ? <Check size={16} className="text-green-500"/> : <Copy size={16} />}</button>}</div><div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end space-x-3"><button onClick={() => regenerateSingleEmail(index)} disabled={isGenerating} className={`inline-flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all shadow-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 hover:text-slate-900'}`}><RefreshCw size={16} className="mr-2 opacity-70" /> Regénérer</button>{result.status === 'done' && <a href={getMailtoLink(result.Email || '', result.generatedSubject || 'Candidature', result.generatedEmail)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all">Ouvrir le brouillon <ChevronRight size={16} className="ml-1 opacity-70" /></a>}</div></div>}
+                    {(result.status === 'done' || result.status === 'error') && <div><div className="px-6 py-3 bg-white border-b border-slate-100 text-[13px] flex items-center"><span className="font-bold text-slate-400 uppercase tracking-wider mr-3">Objet :</span><span className="font-semibold text-slate-700">{result.generatedSubject}</span></div><div className={`p-6 text-[14px] whitespace-pre-wrap leading-relaxed relative ${result.status === 'error' ? 'bg-red-50/30 text-red-800' : 'bg-white text-slate-700'}`}>{result.generatedEmail}{result.status === 'done' && <button onClick={() => copyToClipboard(result.generatedEmail, index)} className="absolute top-4 right-4 p-2 bg-white border border-slate-200 rounded-xl shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-50 text-slate-500">{copiedIndex === index ? <Check size={16} className="text-green-500"/> : <Copy size={16} />}</button>}</div><div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex justify-end space-x-3"><button onClick={() => regenerateSingleEmail(index)} disabled={isGenerating} className={`inline-flex items-center px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-semibold rounded-xl transition-all shadow-sm ${isGenerating ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 hover:text-slate-900'}`}><RefreshCw size={16} className="mr-2 opacity-70" /> Regénérer</button>{result.status === 'done' && <a href={getMailtoLink(result.Email || '', result.generatedSubject || 'Candidature', result.generatedEmail)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-5 py-2 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all">Ouvrir {mailClient === 'outlook' ? 'Outlook' : mailClient === 'gmail' ? 'Gmail' : 'Brouillon'} <ChevronRight size={16} className="ml-1 opacity-70" /></a>}</div></div>}
                   </div>
                 </div>
               ))}
