@@ -52,7 +52,7 @@ export default function App() {
   const [mailClient, setMailClient] = useState('outlook');
   const [subjectTemplate, setSubjectTemplate] = useState("Candidature : Stage [Job] - Arnaud Zhen");
   const [template, setTemplate] = useState("Monsieur/Madame [Nom],\n\nActuellement étudiant au Programme Grande École de emlyon business school, avec une spécialisation en finance de marché et une première expérience chez Look&Fin comme Assistant Analyste Financier, je me permets de vous contacter afin de connaître les opportunités de stage à partir de Juillet 2026 au sein de votre équipe de [Job][Asset]. \n\nJ’ai développé une solide compréhension des produits dérivés, en particulier sur les options vanilles, les sensibilités et les mécanismes de pricing (pense à personnaliser cette partie selon les missions attendues : produits, outils, ou thématiques du stage). \nJe dispose également de premières bases sur les produits FX et leurs usages en couverture. Ces connaissances s’appuient sur de bonnes compétences techniques (Excel, VBA, Python) et une réelle volonté de m’investir sur un desk exigeant comme le vôtre. \n\nJe joins mon CV à ce mail et reste disponible pour échanger à votre convenance, notamment par téléphone au +33767834222. \nCordialement, \nArnaud Zhen");
-  const [prompt, setPrompt] = useState("Tu es un étudiant en finance à l'emlyon business school. Tu contactes des professionnels en poste pour des opportunités de stage en finance de marché. Ton but est de personnaliser le modèle d'e-mail fourni pour la personne ciblée. Utilise ses informations (notamment les colonnes Linkedin, Asset, Desk si disponibles) pour adapter l'accroche et pour remplacer la partie entre parenthèses dans le modèle par des éléments pertinents liés à son desk ou ses produits, n'en fait pas trop non plus. Le ton doit rester très professionnel, courtois et sur-mesure. Renvoie UNIQUEMENT le texte de l'e-mail final, sans aucun commentaire avant ou après.");
+  const [prompt, setPrompt] = useState("Tu es un étudiant en finance à l'emlyon business school. Tu contactes des professionnels en poste pour des opportunités de stage en finance de marché. Ton but est de personnaliser le modèle d'e-mail fourni pour la personne ciblée. Utilise ses informations (notamment les colonnes Linkedin, Asset, Desk si disponibles) pour adapter l'accroche et surtout pour remplacer la partie entre parenthèses dans le modèle par des éléments pertinents liés à son desk ou ses produits. Le ton doit rester très professionnel, courtois et sur-mesure. Renvoie UNIQUEMENT le texte de l'e-mail final, sans aucun commentaire avant ou après, et sans l'entourer de guillemets ou de parenthèses.");
   
   const [results, setResults] = useState([]); 
   const [isGenerating, setIsGenerating] = useState(false); 
@@ -233,7 +233,7 @@ export default function App() {
     const delays = [1000, 2000, 4000, 8000, 16000];
     for (let i = 0; i < retries; i++) {
       try {
-        const response = await window.puter.ai.chat(combinedPrompt);
+        const response = await window.puter.ai.chat(combinedPrompt, { model: 'claude-haiku-4-5' });
         let resultText = "";
         if (typeof response === 'string') resultText = response;
         else if (response?.message?.content) {
@@ -288,16 +288,19 @@ export default function App() {
       
       const userText = `Cible : ${JSON.stringify(row, null, 2)}\nModèle : """${preFilledTemplate}"""`;
       const generatedText = await callAI(prompt, userText);
-      const safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
+      let safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
+
+      // Nettoyage des caractères parasites (guillemets ou parenthèses) rajoutés par l'IA à la fin
+      safeText = safeText.trim().replace(/^["']|["']$/g, '').replace(/\)+$/, '').trim();
 
       if (stopRef.current) {
-        newResults[i].generatedEmail = safeText.trim();
+        newResults[i].generatedEmail = safeText;
         newResults[i].status = safeText.includes('Erreur') ? 'error' : 'done';
         setResults([...newResults]);
         break;
       }
 
-      newResults[i].generatedEmail = safeText.trim();
+      newResults[i].generatedEmail = safeText;
       newResults[i].status = safeText.includes('Erreur') ? 'error' : 'done';
       
       if (newResults[i].status === 'done' && !userData.isSubscribed) {
@@ -348,9 +351,12 @@ export default function App() {
 
     const userText = `Cible : ${JSON.stringify(row, null, 2)}\nModèle : """${preFilledTemplate}"""`;
     const generatedText = await callAI(prompt, userText);
-    const safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
+    let safeText = typeof generatedText === 'string' ? generatedText : "Erreur de génération";
 
-    newResults[index].generatedEmail = safeText.trim();
+    // Nettoyage des caractères parasites (guillemets ou parenthèses) rajoutés par l'IA à la fin
+    safeText = safeText.trim().replace(/^["']|["']$/g, '').replace(/\)+$/, '').trim();
+
+    newResults[index].generatedEmail = safeText;
     newResults[index].status = safeText.includes('Erreur') ? 'error' : 'done';
     
     if (newResults[index].status === 'done' && !userData.isSubscribed) {
@@ -593,6 +599,7 @@ export default function App() {
             <div className="space-y-6">
               <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><Mail size={16} className="mr-2 text-slate-400" /> Objet de l'e-mail</label><input type="text" className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none" value={subjectTemplate} onChange={(e) => setSubjectTemplate(e.target.value)} /></div>
               <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><FileText size={16} className="mr-2 text-slate-400" /> Corps de l'e-mail</label><textarea className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none resize-y" rows="6" value={template} onChange={(e) => setTemplate(e.target.value)} /></div>
+              <div><label className="flex items-center text-sm font-semibold text-slate-700 mb-2"><Settings size={16} className="mr-2 text-slate-400" /> Instructions pour l'IA</label><textarea className="w-full text-sm p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 outline-none resize-y" rows="4" value={prompt} onChange={(e) => setPrompt(e.target.value)} /></div>
             </div>
           </section>
           <div className="sticky bottom-6 z-40">
@@ -709,7 +716,15 @@ export default function App() {
           </div>
           
           <div className="mt-10 text-center">
-            <button onClick={() => { setCurrentView('app'); window.scrollTo(0, 0); }} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold text-lg hover:bg-slate-800 hover:scale-105 transition-all shadow-xl shadow-slate-900/20">
+            <button onClick={() => { 
+              if (user) {
+                setCurrentView('app'); 
+              } else {
+                setIsSignUp(true);
+                setCurrentView('auth');
+              }
+              window.scrollTo(0, 0); 
+            }} className="bg-slate-900 text-white px-10 py-4 rounded-2xl font-bold text-lg hover:bg-slate-800 hover:scale-105 transition-all shadow-xl shadow-slate-900/20">
               J'ai mon CSV, c'est parti ! <ArrowRight className="inline ml-2" size={20}/>
             </button>
           </div>
@@ -819,6 +834,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC] font-sans selection:bg-indigo-100">
+      {/* Masquer les badges publicitaires injectés par Puter */}
+      <style>{`
+        div[id^="puter-"], iframe[id^="puter-"] {
+            display: none !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+      `}</style>
+      
       {renderHeader()}
       <div className="flex-1">
         {currentView === 'home' && renderHome()}
