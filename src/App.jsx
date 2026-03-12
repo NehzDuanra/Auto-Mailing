@@ -747,7 +747,7 @@ export default function App() {
       <p className="text-lg text-slate-600 mb-8">Une question, un bug technique, ou une suggestion d'amélioration ? Nous sommes là pour vous aider.</p>
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
         <p className="text-slate-700 mb-6 font-medium">Envoyez-nous un e-mail directement à cette adresse :</p>
-        <a href="mailto:contact@auto-mailing.com" className="text-2xl font-bold text-indigo-600 hover:text-indigo-800 transition-colors">contact@auto-mailing.com</a>
+        <a href="mailto:contact@auto-mailing.fr" className="text-2xl font-bold text-indigo-600 hover:text-indigo-800 transition-colors">contact@auto-mailing.fr</a>
       </div>
     </main>
   );
@@ -758,7 +758,7 @@ export default function App() {
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 text-slate-700">
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-2">1. Éditeur du site</h2>
-          <p>Le site Auto-Mailing est édité par Arnaud Zhen.<br/>Email de contact : contact@auto-mailing.com</p>
+          <p>Le site Auto-Mailing est édité par Arnaud Zhen.<br/>Email de contact : contact@auto-mailing.fr</p>
         </section>
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-2">2. Hébergement</h2>
@@ -790,7 +790,7 @@ export default function App() {
         </section>
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-2">4. Vos droits</h2>
-          <p>Conformément à la réglementation européenne (RGPD), vous disposez d'un droit d'accès, de rectification et de suppression totale de vos données. Pour l'exercer, il vous suffit de nous contacter à l'adresse contact@auto-mailing.com.</p>
+          <p>Conformément à la réglementation européenne (RGPD), vous disposez d'un droit d'accès, de rectification et de suppression totale de vos données. Pour l'exercer, il vous suffit de nous contacter à l'adresse contact@auto-mailing.fr.</p>
         </section>
       </div>
     </main>
