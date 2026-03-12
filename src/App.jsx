@@ -487,7 +487,7 @@ export default function App() {
             </div>
             <h3 className="text-lg font-bold text-indigo-900 mb-3">Le Cheat-Code IA</h3>
             <p className="text-slate-700 text-sm leading-relaxed">
-              Auto-Mailing rédige instantanément une accroche <strong>unique pour chaque destinataire</strong> en s'adaptant à son desk, son entreprise et ses infos LinkedIn. Vous envoyez 100 candidatures parfaites en 5 minutes. Volume et qualité enfin réunis.
+              Auto-Mailing rédige instantanément une accroche <strong>unique pour chaque destinataire</strong> en s'adaptant à son desk, son entreprise et ses infos. Vous envoyez 100 candidatures parfaites en 5 minutes. Volume et qualité enfin réunis.
             </p>
           </div>
         </div>
