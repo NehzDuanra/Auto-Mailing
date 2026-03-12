@@ -50,9 +50,11 @@ export default function App() {
   const [columns, setColumns] = useState([]); 
   const [fileName, setFileName] = useState(''); 
   const [mailClient, setMailClient] = useState('outlook');
-  const [subjectTemplate, setSubjectTemplate] = useState("Candidature : Stage [Job] - Arnaud Zhen");
-  const [template, setTemplate] = useState("Monsieur/Madame [Nom],\n\nActuellement étudiant au Programme Grande École de emlyon business school, avec une spécialisation en finance de marché et une première expérience chez Look&Fin comme Assistant Analyste Financier, je me permets de vous contacter afin de connaître les opportunités de stage à partir de Juillet 2026 au sein de votre équipe de [Job][Asset]. \n\nJ’ai développé une solide compréhension des produits dérivés, en particulier sur les options vanilles, les sensibilités et les mécanismes de pricing (pense à personnaliser cette partie selon les missions attendues : produits, outils, ou thématiques du stage). \nJe dispose également de premières bases sur les produits FX et leurs usages en couverture. Ces connaissances s’appuient sur de bonnes compétences techniques (Excel, VBA, Python) et une réelle volonté de m’investir sur un desk exigeant comme le vôtre. \n\nJe joins mon CV à ce mail et reste disponible pour échanger à votre convenance, notamment par téléphone au +33767834222. \nCordialement, \nArnaud Zhen");
-  const [prompt, setPrompt] = useState("Tu es un étudiant en finance à l'emlyon business school. Tu contactes des professionnels en poste pour des opportunités de stage en finance de marché. Ton but est de personnaliser le modèle d'e-mail fourni pour la personne ciblée. Utilise ses informations (notamment les colonnes Linkedin, Asset, Desk si disponibles) pour adapter l'accroche et surtout pour remplacer la partie entre parenthèses dans le modèle par des éléments pertinents liés à son desk ou ses produits. Le ton doit rester très professionnel, courtois et sur-mesure. Renvoie UNIQUEMENT le texte de l'e-mail final, sans aucun commentaire avant ou après, et sans l'entourer de guillemets ou de parenthèses.");
+  
+  // TEMPLATES ANONYMES ET GÉNÉRIQUES
+  const [subjectTemplate, setSubjectTemplate] = useState("Candidature spontanée : [Job] - [Votre Prénom] [Votre Nom]");
+  const [template, setTemplate] = useState("Bonjour [Prénom] [Nom],\n\nActuellement à la recherche de nouvelles opportunités professionnelles, je me permets de vous contacter afin d'échanger sur vos activités au sein de l'équipe [Job]. \n\nVotre secteur et les projets menés par votre entreprise m'intéressent tout particulièrement. Fort(e) d'une formation solide et d'une première expérience réussie, j’ai développé des compétences clés (l'IA va personnaliser cette partie avec des éléments pertinents de votre secteur : outils maîtrisés, type de projets, etc.) et je suis très motivé(e) à l'idée d'apporter ma contribution à vos futurs défis. \n\nJe joins mon CV à ce mail et reste disponible pour échanger à votre convenance.\n\nBien cordialement, \n\n[Votre Prénom] [Votre Nom]\n[Votre Numéro de Téléphone]");
+  const [prompt, setPrompt] = useState("Tu es un(e) candidat(e) à la recherche d'une opportunité professionnelle (emploi, stage, alternance). Tu contactes des professionnels en poste pour des candidatures spontanées. Ton but est de personnaliser le modèle d'e-mail fourni pour la personne ciblée. Utilise ses informations (notamment l'entreprise, le poste, le secteur) pour adapter l'accroche et surtout pour remplacer la partie entre parenthèses dans le modèle par des compétences ou des éléments pertinents liés à son métier. Le ton doit rester très professionnel, courtois et sur-mesure. Renvoie UNIQUEMENT le texte de l'e-mail final, sans aucun commentaire avant ou après, et sans l'entourer de guillemets ou de parenthèses.");
   
   const [results, setResults] = useState([]); 
   const [isGenerating, setIsGenerating] = useState(false); 
@@ -183,7 +185,7 @@ export default function App() {
       '50': 'https://buy.stripe.com/test_bJecN7fdm4GYay9aUy3F604', 
       '110': 'https://buy.stripe.com/test_00weVfc1a4GYeOp2o23F603',
       '170': 'https://buy.stripe.com/test_28EcN72qAehy8q1aUy3F602',
-      'unlimited': 'https://buy.stripe.com/test_28E4gB4yIa1idKl4wa3F601'
+      '1000': 'https://buy.stripe.com/test_aFa8wR0isa1i6hTbYC3F605' // Modification ici : on passe de unlimited à 1000
     };
 
     const link = stripeLinks[packId];
@@ -466,7 +468,7 @@ export default function App() {
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-3">Le Marché Caché</h3>
             <p className="text-slate-600 text-sm leading-relaxed">
-              Près de <strong>70% des offres prestigieuses</strong> (M&A, Finance de marché, Conseil) ne sont jamais publiées. Contacter directement les analystes et opérationnels via une candidature spontanée permet de contourner les filtres RH et de prouver votre détermination.
+              Près de <strong>70% des offres prestigieuses</strong> ne sont jamais publiées. Contacter directement les analystes et opérationnels via une candidature spontanée permet de contourner les filtres RH et de prouver votre détermination.
             </p>
           </div>
           
@@ -487,7 +489,7 @@ export default function App() {
             </div>
             <h3 className="text-lg font-bold text-indigo-900 mb-3">Le Cheat-Code IA</h3>
             <p className="text-slate-700 text-sm leading-relaxed">
-              Auto-Mailing rédige instantanément une accroche <strong>unique pour chaque destinataire</strong> en s'adaptant à son desk, son entreprise et ses infos. Vous envoyez 100 candidatures parfaites en 5 minutes. Volume et qualité enfin réunis.
+              Auto-Mailing rédige instantanément une accroche <strong>unique pour chaque destinataire</strong> en s'adaptant à son métier, son entreprise et ses infos. Vous envoyez 100 candidatures parfaites en 5 minutes. Volume et qualité enfin réunis.
             </p>
           </div>
         </div>
@@ -552,8 +554,8 @@ export default function App() {
         </div>
         <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800 shadow-xl shadow-slate-900/20 text-center flex flex-col relative transform md:-translate-y-4">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-xs font-bold px-4 py-1.5 rounded-full uppercase tracking-wider whitespace-nowrap">Le meilleur choix</div>
-          <h3 className="text-lg font-bold text-white mb-2">Abonnement</h3><div className="text-4xl font-extrabold text-white mb-2">20€<span className="text-lg text-slate-400 font-medium">/mois</span></div><div className="flex items-center justify-center space-x-2 text-indigo-300 font-bold mb-8 bg-white/10 py-2 rounded-lg mt-2"><Star size={18} className="fill-current" /> <span>Crédits Illimités</span></div>
-          <button onClick={() => handlePurchase('unlimited')} className="mt-auto w-full py-3 rounded-xl font-bold bg-white text-slate-900 hover:bg-slate-100 transition-colors">Souscrire</button>
+          <h3 className="text-lg font-bold text-white mb-2">Pack Max</h3><div className="text-4xl font-extrabold text-white mb-2">20€</div><div className="flex items-center justify-center space-x-2 text-indigo-300 font-bold mb-8 bg-white/10 py-2 rounded-lg mt-2"><Zap size={18} className="fill-current" /> <span>1000 crédits</span></div>
+          <button onClick={() => handlePurchase('1000')} className="mt-auto w-full py-3 rounded-xl font-bold bg-white text-slate-900 hover:bg-slate-100 transition-colors">Acheter</button>
         </div>
       </div>
     </main>
@@ -567,6 +569,29 @@ export default function App() {
           <button onClick={() => setCurrentView('pricing')} className="bg-amber-100 text-amber-800 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-amber-200">Recharger</button>
         </div>
       )}
+      
+      {/* NOUVELLE SECTION EXPLICATIVE */}
+      <div className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 p-6 sm:p-8 mb-8">
+        <h2 className="text-xl font-bold text-slate-800 mb-5 flex items-center"><Info className="mr-2 text-indigo-500" size={24} /> Comment utiliser l'outil ?</h2>
+        <div className="grid md:grid-cols-3 gap-6 text-sm text-slate-600">
+          <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <span className="inline-block w-6 h-6 bg-indigo-100 text-indigo-600 font-bold rounded-full text-center leading-6 mb-3">1</span>
+            <strong className="text-slate-800 block mb-1">Importez votre CSV</strong>
+            Glissez-déposez votre fichier contenant votre liste de contacts professionnels (il doit obligatoirement contenir les colonnes Prénom et Nom).
+          </div>
+          <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <span className="inline-block w-6 h-6 bg-indigo-100 text-indigo-600 font-bold rounded-full text-center leading-6 mb-3">2</span>
+            <strong className="text-slate-800 block mb-1">Préparez votre modèle</strong>
+            Rédigez votre e-mail de base. N'hésitez pas à utiliser les variables comme [Prénom] ou [Entreprise] et à configurer les instructions pour l'IA.
+          </div>
+          <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
+            <span className="inline-block w-6 h-6 bg-indigo-100 text-indigo-600 font-bold rounded-full text-center leading-6 mb-3">3</span>
+            <strong className="text-slate-800 block mb-1">Laissez la magie opérer</strong>
+            Lancez la génération. L'IA va créer un message hyper-personnalisé pour chaque cible. Il ne vous restera plus qu'à cliquer pour envoyer.
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 lg:gap-12">
         <div className="xl:col-span-5 space-y-8">
           <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 p-6 sm:p-8 relative overflow-hidden">
@@ -758,7 +783,7 @@ export default function App() {
       <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 space-y-6 text-slate-700">
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-2">1. Éditeur du site</h2>
-          <p>Le site Auto-Mailing est édité par Arnaud Zhen.<br/>Email de contact : contact@auto-mailing.fr</p>
+          <p>Le site Auto-Mailing est édité par l'équipe Auto-Mailing.<br/>Email de contact : contact@auto-mailing.fr</p>
         </section>
         <section>
           <h2 className="text-xl font-bold text-slate-900 mb-2">2. Hébergement</h2>
