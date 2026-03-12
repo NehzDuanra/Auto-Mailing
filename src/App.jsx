@@ -587,7 +587,7 @@ export default function App() {
           <div className="bg-slate-50 p-5 rounded-xl border border-slate-100">
             <span className="inline-block w-6 h-6 bg-indigo-100 text-indigo-600 font-bold rounded-full text-center leading-6 mb-3">3</span>
             <strong className="text-slate-800 block mb-1">Laissez la magie opérer</strong>
-            Lancez la génération. L'IA va créer un message hyper-personnalisé pour chaque cible. Il ne vous restera plus qu'à cliquer pour envoyer.
+            Lancez la génération. L'IA va créer un message hyper-personnalisé pour chaque cible. <strong>N'oubliez pas d'attacher votre CV avant d'envoyer !</strong>
           </div>
         </div>
       </div>
@@ -640,7 +640,13 @@ export default function App() {
         </div>
         <div className="xl:col-span-7 space-y-6">
           <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200/60 p-6 sm:p-8 min-h-[800px] flex flex-col">
-            <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-100"><h2 className="text-xl font-bold text-slate-800 flex items-center"><span className="w-2 h-6 bg-indigo-500 rounded-full mr-3"></span>Aperçu & Validation</h2>{results.length > 0 && <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">{results.filter(r => r.status === 'done').length} / {results.length} terminés</span>}</div>
+            <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100"><h2 className="text-xl font-bold text-slate-800 flex items-center"><span className="w-2 h-6 bg-indigo-500 rounded-full mr-3"></span>Aperçu & Validation</h2>{results.length > 0 && <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1 rounded-full">{results.filter(r => r.status === 'done').length} / {results.length} terminés</span>}</div>
+            
+            <div className="bg-blue-50/70 border border-blue-100 text-blue-700 px-5 py-4 rounded-2xl mb-8 flex items-start text-sm">
+              <Info size={20} className="mr-3 shrink-0 mt-0.5 text-blue-500" />
+              <p><strong>Dernière étape :</strong> Les boutons d'action vous permettent d'ouvrir l'e-mail dans votre messagerie. <strong>N'oubliez pas d'y glisser votre CV en pièce jointe</strong> avant de l'envoyer définitivement au recruteur !</p>
+            </div>
+
             {results.length === 0 ? <div className="flex-1 flex flex-col items-center justify-center text-slate-400"><div className="w-24 h-24 mb-6 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center"><Mail size={32} className="opacity-40" /></div><p className="text-[15px] font-medium text-slate-500">Vos e-mails apparaîtront ici.</p></div> : <div className="space-y-8">
               {results.map((result, index) => (
                 <div key={index} className="border border-slate-200/70 rounded-[1.5rem] overflow-hidden hover:border-slate-300 transition-colors shadow-sm bg-white group">
